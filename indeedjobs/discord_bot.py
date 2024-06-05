@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 
 class DiscordBot(Bot):
 
-
     def __init__(self) -> None:
 
 
@@ -27,16 +26,32 @@ class DiscordBot(Bot):
         super().__init__(command_prefix, help_command=None, description=description, intents=intents)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self.task_delay: int = 1
         self.kill = False
+
+        self.config_channel: discord.TextChannel | None = None
+        self.notif_channel: discord.TextChannel | None = None
         try:
             load_dotenv()
             self.token: str = os.getenv("TOKEN")
             self.config_channel_id: int = int(os.getenv("CONFIG_CHANNEL"))
-            self.config_channel: discord.TextChannel | None = None
             self.notif_channel_id: int = int(os.getenv("NOTIFICATIONS_CHANNEL"))
-            self.notif_channel: discord.TextChannel | None = None
         except Exception as e:
             self.logger.exception(e)
+            self.kill = True
+
+
+    async def _killswitch_check(self) -> None:
+        '''Asynchronous checking whether the close command has been sent. Closes the connection if True.'''
+
+        if self.kill:
+            if self.config_channel is not None:
+                await self.config_channel.send("Closing application, see you later!")
+            await self.close()
+
+
+    async def check_jobs(self) -> None:
+        pass
 
 
     async def _get_channels(self) -> None:
@@ -80,8 +95,6 @@ class DiscordBot(Bot):
         async def close(ctx: Context) -> None:
             if not ctx.channel.id == self.config_channel_id:
                 return
-
-            await self.config_channel.send("Closing bot, bye!")
             await self.close()
 
 
@@ -96,10 +109,16 @@ class DiscordBot(Bot):
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
                 await message.channel.send("✅")
-
             elif payload.emoji.name == "❌" and payload.user_id != self.user.id:
                 await message.delete()
             
+
+        @tasks.loop(seconds=self.task_delay)
+        @exception_handler_async
+        async def tasks_loop() -> None:
+
+            await asyncio.gather(self._killswitch_check(), self.check_jobs())
+
 
         @self.event
         @exception_handler_async
@@ -109,6 +128,6 @@ class DiscordBot(Bot):
             await self._get_channels()
             message = await self.config_channel.send("Bot is live!")
             asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
-            #await _main_loop.start()
+            await tasks_loop.start()
 
         super().run(self.token)
