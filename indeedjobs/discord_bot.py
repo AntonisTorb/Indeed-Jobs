@@ -9,13 +9,16 @@ from discord.ext.commands import Bot, Context
 import discord.types
 from dotenv import load_dotenv
 
+from .configuration import Config
+
 
 class DiscordBot(Bot):
 
-    def __init__(self) -> None:
+    def __init__(self, config: Config) -> None:
+        '''Discord bot that notifies the user for new `Indeed` job postings and performs db actions.'''
 
-
-
+        self.config = config
+        
         command_prefix = "!"
         description = "Testing"
         intents: discord.Intents = discord.Intents.default()
@@ -26,8 +29,6 @@ class DiscordBot(Bot):
         super().__init__(command_prefix, help_command=None, description=description, intents=intents)
 
         self.logger: logging.Logger = logging.getLogger(__name__)
-        self.task_delay: int = 1
-        self.kill = False
 
         self.config_channel: discord.TextChannel | None = None
         self.notif_channel: discord.TextChannel | None = None
@@ -38,32 +39,37 @@ class DiscordBot(Bot):
             self.notif_channel_id: int = int(os.getenv("NOTIFICATIONS_CHANNEL"))
         except Exception as e:
             self.logger.exception(e)
-            self.kill = True
+            self.config.kill = True
 
 
     async def _killswitch_check(self) -> None:
         '''Asynchronous checking whether the close command has been sent. Closes the connection if True.'''
 
-        if self.kill:
+        if self.config.kill:
             if self.config_channel is not None:
                 await self.config_channel.send("Closing application, see you later!")
             await self.close()
 
 
-    async def check_jobs(self) -> None:
-        pass
+    async def _check_jobs(self) -> None:
+        '''Checks if there are new job postings in the db and notifies the user.'''
 
+        if self.config.new_jobs_in_db:
+            #send the new job notifications
+            pass
+
+        self.config.new_jobs_in_db = False
 
     async def _get_channels(self) -> None:
         '''Asynchronous getting required channels once client is ready.'''
     
-        while self.config_channel is None and not self.kill:
+        while self.config_channel is None and not self.config.kill:
             self.config_channel = self.get_channel(self.config_channel_id)
             if self.config_channel is None:
                 self.logger.error("Could not get config channel. Retrying...")
                 await asyncio.sleep(1)
 
-        while self.notif_channel is None and not self.kill:
+        while self.notif_channel is None and not self.config.kill:
             self.notif_channel = self.get_channel(self.notif_channel_id)
             if self.notif_channel is None:
                 self.logger.error("Could not get notification channel. Retrying...")
@@ -113,11 +119,11 @@ class DiscordBot(Bot):
                 await message.delete()
             
 
-        @tasks.loop(seconds=self.task_delay)
+        @tasks.loop(seconds=self.config.bot_delay_sec)
         @exception_handler_async
-        async def tasks_loop() -> None:
+        async def _tasks_loop() -> None:
 
-            await asyncio.gather(self._killswitch_check(), self.check_jobs())
+            await asyncio.gather(self._killswitch_check(), self._check_jobs())
 
 
         @self.event
@@ -128,6 +134,6 @@ class DiscordBot(Bot):
             await self._get_channels()
             message = await self.config_channel.send("Bot is live!")
             asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
-            await tasks_loop.start()
+            await _tasks_loop.start()
 
         super().run(self.token)

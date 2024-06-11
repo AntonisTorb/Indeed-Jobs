@@ -26,7 +26,7 @@ def main() -> None:
 
     # try:
     #     #maintain_log(logger_path, 30)
-    #     bot: DiscordBot = DiscordBot()
+    #     bot: DiscordBot = DiscordBot(config)
     #     main_logger.info("Starting bot...")
     #     bot.run()
     #     main_logger.info("Closing bot...")
@@ -37,10 +37,3 @@ def main() -> None:
 if __name__ == "__main__":
 
     main()
-
-    # country_code = ""
-    # job_title = ""
-    # location = ""
-    # start = 0
-    
-    # print(construct_url(country_code, job_title, location, start))
