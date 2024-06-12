@@ -19,13 +19,19 @@ class IndeedDb:
         '''Creates and returns the `Connection` and `Cursor` objects for the specified `sqlite` database'''
 
         try:
-            con: sqlite3.Connection = sqlite3.connect(self.db_path)
+            con: sqlite3.Connection = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
             cur: sqlite3.Cursor = con.cursor()
             return con, cur
         except Exception as e:
             self.logger.error(e)
             self.config.kill = True
             return None, None
+
+
+    def create_adapters_converters(self) -> None:
+
+        sqlite3.register_adapter(bool, int)
+        sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
 
 
     def create_table(self, drop_existing: bool = True) -> None:
@@ -46,16 +52,16 @@ class IndeedDb:
                         employer TEXT,
                         description TEXT,
                         date_posted TEXT,
-                        notified INTEGER,
-                        interested INTEGER,
-                        response INTEGER,
-                        rejected INTEGER,
-                        interview INTEGER,
-                        job_offer INTEGER
+                        notified BOOLEAN,
+                        interested BOOLEAN,
+                        response BOOLEAN,
+                        rejected BOOLEAN,
+                        interviews INTEGER,
+                        job_offer BOOLEAN
                         )''')
             
             cur.execute('''INSERT INTO indeed_jobs(
-                            url, job_title, employer, description, date_posted, notified, interested, response, rejected, interview, job_offer
+                            url, job_title, employer, description, date_posted, notified, interested, response, rejected, interviews, job_offer
                         ) VALUES (
                             "test url", "test title", "test employer", "test description", "test date", ?, ?, ?, ?, 0, ?
                         )''', 

@@ -20,6 +20,7 @@ def main() -> None:
     try:
         config = Config(config_path)
         indeed_db: IndeedDb = IndeedDb(db_path, config)
+        indeed_db.create_adapters_converters()
         indeed_db.create_table()
         
         scraper = IndeedScraper(config, indeed_db)
