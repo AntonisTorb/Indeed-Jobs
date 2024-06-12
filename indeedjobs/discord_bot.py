@@ -10,14 +10,16 @@ import discord.types
 from dotenv import load_dotenv
 
 from .configuration import Config
+from .database import IndeedDb
 
 
 class DiscordBot(Bot):
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, indeed_db: IndeedDb) -> None:
         '''Discord bot that notifies the user for new `Indeed` job postings and performs db actions.'''
 
         self.config = config
+        self.indeed_db = indeed_db
         
         command_prefix = "!"
         description = "Testing"
@@ -41,24 +43,6 @@ class DiscordBot(Bot):
             self.logger.exception(e)
             self.config.kill = True
 
-
-    async def _killswitch_check(self) -> None:
-        '''Asynchronous checking whether the close command has been sent. Closes the connection if True.'''
-
-        if self.config.kill:
-            if self.config_channel is not None:
-                await self.config_channel.send("Closing application, see you later!")
-            await self.close()
-
-
-    async def _check_jobs(self) -> None:
-        '''Checks if there are new job postings in the db and notifies the user.'''
-
-        if self.config.new_jobs_in_db:
-            #send the new job notifications
-            pass
-
-        self.config.new_jobs_in_db = False
 
     async def _get_channels(self) -> None:
         '''Asynchronous getting required channels once client is ready.'''
@@ -101,7 +85,7 @@ class DiscordBot(Bot):
         async def close(ctx: Context) -> None:
             if not ctx.channel.id == self.config_channel_id:
                 return
-            await self.close()
+            self.config.kill = True
 
 
         @self.event
@@ -119,11 +103,26 @@ class DiscordBot(Bot):
                 await message.delete()
             
 
+        @tasks.loop(seconds=1)
+        @exception_handler_async
+        async def _kill_loop() -> None:
+
+            if self.config.kill:
+                if self.config_channel is not None:
+                    await self.config_channel.send("Closing application, see you later!")
+                await self.close()
+            
+
         @tasks.loop(seconds=self.config.bot_delay_sec)
         @exception_handler_async
         async def _tasks_loop() -> None:
+            '''Checks if new job postings are in the database and notifies the user.'''
 
-            await asyncio.gather(self._killswitch_check(), self._check_jobs())
+            if self.config.new_jobs_in_db:
+                #send the new job notifications
+                pass
+
+            self.config.new_jobs_in_db = False
 
 
         @self.event
@@ -134,6 +133,6 @@ class DiscordBot(Bot):
             await self._get_channels()
             message = await self.config_channel.send("Bot is live!")
             asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
-            await _tasks_loop.start()
+            asyncio.gather(_kill_loop.start(), _tasks_loop.start())
 
         super().run(self.token)

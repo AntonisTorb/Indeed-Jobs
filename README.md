@@ -9,4 +9,4 @@ An app that scrapes Indeed for jobs based on provided configuration and notifies
 - 2 reactions: First to add to consideration, second to mark uninterested.
 - Maybe add reply bot commands that add data to the db (like reply status, rejections, interviews, offers, etc.)
 - ~~Add configuration options for delays etc.~~
-- Create database with considered jobs, keep track of dates, responses, notification status etc.
+- ~~Create database with considered jobs, keep track of dates, responses, notification status etc.~~

@@ -7,12 +7,15 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 
 from .configuration import Config
+from .database import IndeedDb
 
 class IndeedScraper:
 
-    def __init__(self, config: Config) -> None:
-        '''Scraper class for Indeed Job postings.'''
+    def __init__(self, config: Config, indeed_db: IndeedDb) -> None:
+        '''Scraper class for `Indeed` Job postings.'''
+
         self.config = config
+        self.indeed_db: IndeedDb = indeed_db
         
 
     def _construct_urls(self) -> list[str]:
