@@ -34,7 +34,7 @@ class IndeedDb:
         sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
 
 
-    def create_table(self, drop_existing: bool = True) -> None:
+    def create_table(self, drop_existing: bool = False) -> None:
         
         
         con: sqlite3.Connection

@@ -1,3 +1,4 @@
+import sqlite3
 import time
 
 from selenium import webdriver
@@ -39,31 +40,61 @@ class IndeedScraper:
         url_list: list[str] = self._construct_urls()
         new_job_found = False
 
-        with webdriver.Firefox() as driver:
-            for url in url_list:
-                last_page = False
-                while not last_page:
-                    driver.get(url)
-                    time.sleep(self.config.selenium_sleep_sec)
-                    postings = driver.find_elements(By.CLASS_NAME, "job_seen_beacon")
-                    
-                    for posting in postings:
-                        job_url = posting.find_element(By.CLASS_NAME, "jcs-JobTitle").get_attribute("href")
+        con: sqlite3.Connection
+        cur: sqlite3.Cursor
+        con, cur = self.indeed_db.get_con_cur()
+        cur.execute('SELECT url FROM indeed_jobs')
+        url_list = [url_tuple[0] for url_tuple in cur.fetchall()]
 
-                        # if job_url in database: continue
+        try:
+            with webdriver.Firefox() as driver:
+                for url in url_list:
+                    last_page = False
+                    while not last_page:
+                        driver.get(url)
+                        time.sleep(self.config.selenium_sleep_sec)
+                        postings = driver.find_elements(By.CLASS_NAME, "job_seen_beacon")
+                        
+                        for posting in postings:
+                            job_url = posting.find_element(By.CLASS_NAME, "jcs-JobTitle").get_attribute("href")
 
-                        job_title = posting.find_element(By.CLASS_NAME, 'jcs-JobTitle').find_element(By.CSS_SELECTOR, 'span').text
-                        job_employer = posting.find_element(By.CSS_SELECTOR, "[data-testid='company-name']").text
-                        description_parts = [paragraph.text for paragraph in posting.find_elements(By.CSS_SELECTOR, "li")]
-                        job_description = "\n".join([part for part in description_parts if part])
-                        job_date_posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text.replace("\n", ": ")
-                        new_job_found = True
-                        # add to db
+                            if job_url in url_list:
+                                continue
 
-                    try:  # Get next page URL
-                        url = driver.find_element(By.CSS_SELECTOR, "[data-testid='pagination-page-next']").get_attribute("href")
-                    except NoSuchElementException:
-                        last_page = True
+                            job_title = posting.find_element(By.CLASS_NAME, 'jcs-JobTitle').find_element(By.CSS_SELECTOR, 'span').text
+                            job_employer = posting.find_element(By.CSS_SELECTOR, "[data-testid='company-name']").text
+                            description_parts = [paragraph.text for paragraph in posting.find_elements(By.CSS_SELECTOR, "li")]
+                            job_description = "\n".join([part for part in description_parts if part])
+                            job_date_posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text.replace("\n", ": ")
+                            new_job_found = True
+                            values = [("url", job_url), 
+                                    ("job_title", job_title), 
+                                    ("employer", job_employer), 
+                                    ("description", job_description), 
+                                    ("date_posted", job_date_posted), 
+                                    ("notified", False), 
+                                    ("interested", False), 
+                                    ("response", False), 
+                                    ("rejected", False), 
+                                    ("interviews", 0), 
+                                    ("job_offer", False)]
+                            
+                            cur.execute('''INSERT INTO indeed_jobs(
+                                        url, job_title, employer, description, date_posted, notified, interested, response, rejected, interviews, job_offer
+                                        ) VALUES (?,?)''', values)
+
+
+                        try:  # Get next page URL
+                            url = driver.find_element(By.CSS_SELECTOR, "[data-testid='pagination-page-next']").get_attribute("href")
+                        except NoSuchElementException:
+                            last_page = True
+
+        except Exception as e:
+            self.logger.error(e)
+            self.config.kill = True
+        finally:
+            cur.close()
+            con.close()
         if new_job_found:
             self.config.new_jobs_in_db = True
 
