@@ -25,7 +25,6 @@ class IndeedDb:
         except Exception as e:
             self.logger.error(e)
             self.config.kill = True
-            return None, None
 
 
     def create_adapters_converters(self) -> None:
@@ -67,7 +66,7 @@ class IndeedDb:
                         )''', 
                         (False, False, False, False, False))
             con.commit()
-            res = cur.execute("SELECT * FROM indeed_jobs")
+            res = cur.execute("SELECT url, interviews, job_offer FROM indeed_jobs")
             print(res.fetchall())
         except Exception as e:
             self.logger.error(e)

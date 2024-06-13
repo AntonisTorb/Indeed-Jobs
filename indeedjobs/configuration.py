@@ -21,8 +21,8 @@ class Config():
             raise e
         
         self.new_jobs_in_db: bool = False
+        self.db_busy = False
         self.kill = False
-        
 
 
     def __repr__(self) -> str:

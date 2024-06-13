@@ -40,6 +40,10 @@ class IndeedScraper:
         url_list: list[str] = self._construct_urls()
         new_job_found = False
 
+        while self.config.db_busy:
+            time.sleep(1)
+        
+        self.config.db_busy = True
         con: sqlite3.Connection
         cur: sqlite3.Cursor
         con, cur = self.indeed_db.get_con_cur()
@@ -82,7 +86,7 @@ class IndeedScraper:
                             cur.execute('''INSERT INTO indeed_jobs(
                                         url, job_title, employer, description, date_posted, notified, interested, response, rejected, interviews, job_offer
                                         ) VALUES (?,?)''', values)
-
+                            con.commit()
 
                         try:  # Get next page URL
                             url = driver.find_element(By.CSS_SELECTOR, "[data-testid='pagination-page-next']").get_attribute("href")
@@ -95,6 +99,8 @@ class IndeedScraper:
         finally:
             cur.close()
             con.close()
+            self.config.db_busy = False
+
         if new_job_found:
             self.config.new_jobs_in_db = True
 

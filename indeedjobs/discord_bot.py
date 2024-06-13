@@ -2,6 +2,7 @@ import asyncio
 from functools import wraps
 import logging
 import os
+import sqlite3
 
 import discord
 from discord.ext import tasks
@@ -118,11 +119,36 @@ class DiscordBot(Bot):
         async def _tasks_loop() -> None:
             '''Checks if new job postings are in the database and notifies the user.'''
 
-            if self.config.new_jobs_in_db:
-                #send the new job notifications
-                pass
+            while self.config.db_busy:
+                asyncio.sleep(1)
 
-            self.config.new_jobs_in_db = False
+            if not self.config.new_jobs_in_db:
+                return
+
+            self.config.db_busy = True 
+            con: sqlite3.Connection
+            cur: sqlite3.Cursor
+            con, cur = self.indeed_db.get_con_cur()
+
+            try:
+                new_jobs = cur.execute('SELECT id, url, job_title, employer, description FROM indeed_jobs WHERE notified = 0')
+                for job in new_jobs:
+                    text = '''{}
+URL: {}
+Title: {}
+Employer: {}
+Description: {}'''.format(*job)
+                    message = await self.notif_channel.send(text)
+                    asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
+                    cur.execute('UPDATE indeed_jobs SET notified = 1 WHERE id = ?', (job[0],))
+                    con.commit()
+            except Exception as e:
+                raise e
+            finally:
+                cur.close()
+                con.close()
+                self.config.new_jobs_in_db = False
+                self.config.db_busy = False  
 
 
         @self.event
