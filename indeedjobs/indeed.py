@@ -10,6 +10,7 @@ from selenium.webdriver.firefox.service import Service
 from .configuration import Config
 from .database import IndeedDb
 
+
 class IndeedScraper:
 
     def __init__(self, config: Config, indeed_db: IndeedDb) -> None:
@@ -27,7 +28,6 @@ class IndeedScraper:
             for city in cities:
                 for job_title in self.config.job_titles:
                     url_list.append(f'https://{country_code}.indeed.com/jobs?q={job_title}&l={city}&sort=date')
-
 
         return url_list
 
@@ -70,23 +70,10 @@ class IndeedScraper:
                             description_parts = [paragraph.text for paragraph in posting.find_elements(By.CSS_SELECTOR, "li")]
                             job_description = "\n".join([part for part in description_parts if part])
                             job_date_posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text.replace("\n", ": ")
-                            new_job_found = True
-                            values = [("url", job_url), 
-                                    ("job_title", job_title), 
-                                    ("employer", job_employer), 
-                                    ("description", job_description), 
-                                    ("date_posted", job_date_posted), 
-                                    ("notified", False), 
-                                    ("interested", False), 
-                                    ("response", False), 
-                                    ("rejected", False), 
-                                    ("interviews", 0), 
-                                    ("job_offer", False)]
                             
-                            cur.execute('''INSERT INTO indeed_jobs(
-                                        url, job_title, employer, description, date_posted, notified, interested, response, rejected, interviews, job_offer
-                                        ) VALUES (?,?)''', values)
-                            con.commit()
+                            self.indeed_db.insert_new_job(con, cur, job_title, job_employer, job_description, job_date_posted)
+                            if not new_job_found:
+                                new_job_found = True
 
                         try:  # Get next page URL
                             url = driver.find_element(By.CSS_SELECTOR, "[data-testid='pagination-page-next']").get_attribute("href")

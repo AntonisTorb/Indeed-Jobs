@@ -33,7 +33,7 @@ class IndeedDb:
         sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
 
 
-    def create_table(self, drop_existing: bool = False) -> None:
+    def create_table(self, drop_existing: bool = True) -> None:
         
         
         con: sqlite3.Connection
@@ -53,6 +53,7 @@ class IndeedDb:
                         date_posted TEXT,
                         notified BOOLEAN,
                         interested BOOLEAN,
+                        applied BOOLEAN
                         response BOOLEAN,
                         rejected BOOLEAN,
                         interviews INTEGER,
@@ -60,11 +61,11 @@ class IndeedDb:
                         )''')
             
             cur.execute('''INSERT INTO indeed_jobs(
-                            url, job_title, employer, description, date_posted, notified, interested, response, rejected, interviews, job_offer
+                            url, job_title, employer, description, date_posted, notified, interested, applied, response, rejected, interviews, job_offer
                         ) VALUES (
-                            "test url", "test title", "test employer", "test description", "test date", ?, ?, ?, ?, 0, ?
+                            "test url", "test title", "test employer", "test description", "test date", ?, ?, ?, ?, ?, 0, ?
                         )''', 
-                        (False, False, False, False, False))
+                        (False, False, False, False, False, False))
             con.commit()
             res = cur.execute("SELECT url, interviews, job_offer FROM indeed_jobs")
             print(res.fetchall())
@@ -74,3 +75,26 @@ class IndeedDb:
         finally:
             cur.close()
             con.close()
+
+
+    def insert_new_job(self, con: sqlite3.Connection, cur: sqlite3.Cursor, job_url: str, job_title: str, 
+                       job_employer: str, job_description: str, job_date_posted: str) -> None:
+        
+        
+        values = [("url", job_url), 
+                ("job_title", job_title), 
+                ("employer", job_employer), 
+                ("description", job_description), 
+                ("date_posted", job_date_posted), 
+                ("notified", False), 
+                ("interested", False), 
+                ("applied", False), 
+                ("response", False), 
+                ("rejected", False), 
+                ("interviews", 0), 
+                ("job_offer", False)]
+        
+        cur.execute('''INSERT INTO indeed_jobs(
+                    url, job_title, employer, description, date_posted, notified, interested, applied, response, rejected, interviews, job_offer
+                    ) VALUES (?,?)''', values)
+        con.commit()

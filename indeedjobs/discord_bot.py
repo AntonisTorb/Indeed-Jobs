@@ -2,6 +2,7 @@ import asyncio
 from functools import wraps
 import logging
 import os
+import re
 import sqlite3
 
 import discord
@@ -12,6 +13,7 @@ from dotenv import load_dotenv
 
 from .configuration import Config
 from .database import IndeedDb
+from .utils import DISCORD_HELP, regex_id
 
 
 class DiscordBot(Bot):
@@ -23,7 +25,7 @@ class DiscordBot(Bot):
         self.indeed_db = indeed_db
         
         command_prefix = "!"
-        description = "Testing"
+        description = "Indeed Job scraper, type `/help` in the config channel for some useful commands and interactions."
         intents: discord.Intents = discord.Intents.default()
         intents.messages = True
         intents.reactions = True
@@ -76,9 +78,57 @@ class DiscordBot(Bot):
         @self.command()
         @exception_handler_async
         async def test(ctx: Context):
+            msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+            await msg.edit(content="Test success!")
             if not ctx.channel.id == self.config_channel_id:
                 return
-            await self.config_channel.send("Test success!")
+            #await self.config_channel.send("Test success!")
+
+
+        @self.command()
+        @exception_handler_async
+        async def help(ctx: Context):
+            if not ctx.channel.id == self.config_channel_id:
+                return
+            await ctx.send(DISCORD_HELP)
+
+        
+        @self.command()
+        @exception_handler_async
+        async def set(ctx: Context, field: str, value: str):
+            if not ctx.message.reference or not ctx.channel.id == self.notif_channel_id:
+                return
+            if field not in ("applied", "response", "rejected", "job_offer"):
+                await ctx.send("Wrong field name, please type `!help` for a list of acceptable names.", delete_after=30)
+                await ctx.message.delete()
+                return
+            if value not in ("0", "1"):
+                await ctx.send("Wrong value, please type `!help` for a list of acceptable values.", delete_after=30)
+                await ctx.message.delete()
+                return
+            
+            msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+            job_id = re.findall(regex_id, msg)
+            # print(job_id)
+            
+            while self.config.db_busy:
+                asyncio.sleep(1)
+
+            self.config.db_busy = True 
+            con: sqlite3.Connection
+            cur: sqlite3.Cursor
+            con, cur = self.indeed_db.get_con_cur()
+            try:
+                cur.execute("UPDATE indeed_jobs SET ? = ? WHERE id = ?", (field, int(value), job_id))
+            except Exception as e:
+                raise e
+            finally:
+                cur.close()
+                con.close()
+                self.config.db_busy = False  
+
+            await ctx.send(f'{field} updated to {value} for job with Id: {job_id}', delete_after=30)
+            await ctx.message.delete()
 
 
         @self.command()
@@ -133,11 +183,11 @@ class DiscordBot(Bot):
             try:
                 new_jobs = cur.execute('SELECT id, url, job_title, employer, description FROM indeed_jobs WHERE notified = 0')
                 for job in new_jobs:
-                    text = '''{}
-URL: {}
-Title: {}
-Employer: {}
-Description: {}'''.format(*job)
+                    text = '''**Id**: {}
+**URL**: {}
+**Title**: {}
+**Employer**: {}
+**Description**: {}'''.format(*job)
                     message = await self.notif_channel.send(text)
                     asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
                     cur.execute('UPDATE indeed_jobs SET notified = 1 WHERE id = ?', (job[0],))
@@ -159,6 +209,6 @@ Description: {}'''.format(*job)
             await self._get_channels()
             message = await self.config_channel.send("Bot is live!")
             asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
-            asyncio.gather(_kill_loop.start(), _tasks_loop.start())
+            #asyncio.gather(_kill_loop.start(), _tasks_loop.start())
 
         super().run(self.token)
