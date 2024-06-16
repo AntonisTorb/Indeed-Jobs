@@ -20,8 +20,6 @@ class Config():
             print("Configuration file not found or corrupted. Please check the template in order to create one.")
             raise e
         
-        self.new_jobs_in_db: bool = False
-        self.db_busy = False
         self.kill = False
 
 

@@ -3,7 +3,6 @@ from functools import wraps
 import logging
 import os
 import re
-import sqlite3
 
 import discord
 from discord.ext import tasks
@@ -47,6 +46,13 @@ class DiscordBot(Bot):
             self.config.kill = True
 
 
+    async def get_id(ctx: Context) -> int:
+        '''Retrieves the Id of the message being replied to.'''
+
+        message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        return int(re.findall(regex_id, message.content))
+
+
     async def _get_channels(self) -> None:
         '''Asynchronous getting required channels once client is ready.'''
     
@@ -78,6 +84,7 @@ class DiscordBot(Bot):
         @self.command()
         @exception_handler_async
         async def test(ctx: Context):
+
             msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
             await msg.edit(content="Test success!")
             if not ctx.channel.id == self.config_channel_id:
@@ -88,6 +95,8 @@ class DiscordBot(Bot):
         @self.command()
         @exception_handler_async
         async def help(ctx: Context):
+            '''Sends help message.'''
+
             if not ctx.channel.id == self.config_channel_id:
                 return
             await ctx.send(DISCORD_HELP)
@@ -96,7 +105,11 @@ class DiscordBot(Bot):
         @self.command()
         @exception_handler_async
         async def set(ctx: Context, field: str, value: str):
-            if not ctx.message.reference or not ctx.channel.id == self.notif_channel_id:
+            '''Set certain database field values as provided.
+            The following fields are supported: `applied, response, rejected, job_offer`)
+            '''
+
+            if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
             if field not in ("applied", "response", "rejected", "job_offer"):
                 await ctx.send("Wrong field name, please type `!help` for a list of acceptable names.", delete_after=30)
@@ -107,25 +120,10 @@ class DiscordBot(Bot):
                 await ctx.message.delete()
                 return
             
-            msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-            job_id = re.findall(regex_id, msg)
+            job_id: int = await self.get_id(ctx)
             # print(job_id)
             
-            while self.config.db_busy:
-                asyncio.sleep(1)
-
-            self.config.db_busy = True 
-            con: sqlite3.Connection
-            cur: sqlite3.Cursor
-            con, cur = self.indeed_db.get_con_cur()
-            try:
-                cur.execute("UPDATE indeed_jobs SET ? = ? WHERE id = ?", (field, int(value), job_id))
-            except Exception as e:
-                raise e
-            finally:
-                cur.close()
-                con.close()
-                self.config.db_busy = False  
+            await self.indeed_db.update_for_id(job_id, field, int(value))
 
             await ctx.send(f'{field} updated to {value} for job with Id: {job_id}', delete_after=30)
             await ctx.message.delete()
@@ -133,7 +131,25 @@ class DiscordBot(Bot):
 
         @self.command()
         @exception_handler_async
+        async def interview(ctx: Context):
+            '''Increments the `interviews` value in the database by 1 for the job with the provided Id.'''
+
+            if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
+                return
+
+            job_id: int = await self.get_id(ctx)
+            
+            await self.indeed_db.update_for_id(job_id, "interviews", "")
+
+            await ctx.send(f'Added interview for job with Id: {job_id}', delete_after=30)
+            await ctx.message.delete()
+
+
+        @self.command()
+        @exception_handler_async
         async def close(ctx: Context) -> None:
+            '''Signals the application to close.'''
+
             if not ctx.channel.id == self.config_channel_id:
                 return
             self.config.kill = True
@@ -142,14 +158,24 @@ class DiscordBot(Bot):
         @self.event
         @exception_handler_async
         async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
-
+            '''Performs actions on messages in the `Notification` channel based on the reaction.
+            Positive reaction: Update `interested` field in the database to `True`.
+            Negative reaction: Delete message.
+            '''
+            
             # print(payload.emoji.name, payload.emoji.id)
-            # if payload.channel_id != self.notif_channel_id:
-            #     return
+            if payload.channel_id != self.notif_channel_id:
+                return
+
             message: discord.Message = await self.get_channel(payload.channel_id).fetch_message(payload.message_id)
+            if message.author.id != self.user.id:  # Reaction on message not originally from bot.
+                return
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
-                await message.channel.send("✅")
+                job_id = int(re.findall(regex_id, message.content))
+                await self.indeed_db.update_for_id(job_id, "interested", 1)
+                await message.remove_reaction("❌")
+                await message.channel.send(f'Updated: Interested in Job with Id: {job_id}', delete_after=30)
             elif payload.emoji.name == "❌" and payload.user_id != self.user.id:
                 await message.delete()
             
@@ -169,15 +195,13 @@ class DiscordBot(Bot):
         async def _tasks_loop() -> None:
             '''Checks if new job postings are in the database and notifies the user.'''
 
-            while self.config.db_busy:
+            while self.indeed_db.busy:
                 asyncio.sleep(1)
 
-            if not self.config.new_jobs_in_db:
+            if not self.indeed_db.new_jobs:
                 return
 
-            self.config.db_busy = True 
-            con: sqlite3.Connection
-            cur: sqlite3.Cursor
+            self.indeed_db.busy = True 
             con, cur = self.indeed_db.get_con_cur()
 
             try:
@@ -197,8 +221,8 @@ class DiscordBot(Bot):
             finally:
                 cur.close()
                 con.close()
-                self.config.new_jobs_in_db = False
-                self.config.db_busy = False  
+                self.indeed_db.new_jobs = False
+                self.indeed_db.busy = False  
 
 
         @self.event
@@ -207,8 +231,8 @@ class DiscordBot(Bot):
             
             self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
             await self._get_channels()
-            message = await self.config_channel.send("Bot is live!")
-            asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
+            await self.config_channel.send("Bot is live!")
+            #asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
             #asyncio.gather(_kill_loop.start(), _tasks_loop.start())
 
         super().run(self.token)

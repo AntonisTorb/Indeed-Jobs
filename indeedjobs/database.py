@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 import sqlite3
@@ -13,6 +14,8 @@ class IndeedDb:
         self.config: Config = config
 
         self.logger: logging.Logger = logging.getLogger(__name__)
+        self.busy = False
+        self.new_jobs = False
 
 
     def get_con_cur(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]|tuple[None, None]:
@@ -28,18 +31,16 @@ class IndeedDb:
 
 
     def create_adapters_converters(self) -> None:
+        '''Creates adapters and converters for the Sqlite3 database.'''
 
         sqlite3.register_adapter(bool, int)
         sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
 
 
     def create_table(self, drop_existing: bool = True) -> None:
+        '''Initial creation of the `indeed_jobs` table.'''
         
-        
-        con: sqlite3.Connection
-        cur: sqlite3.Cursor
         con, cur = self.get_con_cur()
-        
         if drop_existing:
             cur.execute("DROP TABLE IF EXISTS indeed_jobs")
 
@@ -79,7 +80,7 @@ class IndeedDb:
 
     def insert_new_job(self, con: sqlite3.Connection, cur: sqlite3.Cursor, job_url: str, job_title: str, 
                        job_employer: str, job_description: str, job_date_posted: str) -> None:
-        
+        '''Insert new job row to the database.'''
         
         values = [("url", job_url), 
                 ("job_title", job_title), 
@@ -98,3 +99,25 @@ class IndeedDb:
                     url, job_title, employer, description, date_posted, notified, interested, applied, response, rejected, interviews, job_offer
                     ) VALUES (?,?)''', values)
         con.commit()
+
+
+    async def update_for_id(self, job_id: int, field: str, value: str):
+        '''Update the database field with the values provided for the specified Id'''
+        
+        while self.busy:
+            asyncio.sleep(1)
+
+        self.busy = True 
+        con, cur = self.get_con_cur()
+
+        try:
+            if value == "interviews":
+                cur.execute("UPDATE indeed_jobs SET interviews = interviews + 1 WHERE id = ?", (job_id))
+            else:
+                cur.execute("UPDATE indeed_jobs SET ? = ? WHERE id = ?", (field, int(value), job_id))
+        except Exception as e:
+            raise e
+        finally:
+            cur.close()
+            con.close()
+            self.busy = False

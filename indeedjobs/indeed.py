@@ -1,4 +1,3 @@
-import sqlite3
 import time
 
 from selenium import webdriver
@@ -40,12 +39,10 @@ class IndeedScraper:
         url_list: list[str] = self._construct_urls()
         new_job_found = False
 
-        while self.config.db_busy:
+        while self.indeed_db.busy:
             time.sleep(1)
         
-        self.config.db_busy = True
-        con: sqlite3.Connection
-        cur: sqlite3.Cursor
+        self.indeed_db.busy = True
         con, cur = self.indeed_db.get_con_cur()
         cur.execute('SELECT url FROM indeed_jobs')
         url_list = [url_tuple[0] for url_tuple in cur.fetchall()]
@@ -86,10 +83,10 @@ class IndeedScraper:
         finally:
             cur.close()
             con.close()
-            self.config.db_busy = False
+            self.indeed_db.busy = False
 
         if new_job_found:
-            self.config.new_jobs_in_db = True
+            self.indeed_db.new_jobs = True
 
     
     def scrape_loop(self):
