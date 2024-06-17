@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+import re
 import time
 
 from selenium import webdriver
@@ -25,10 +27,31 @@ class IndeedScraper:
         url_list: list[str] = []
         for country_code, cities in self.config.locations.items():
             for city in cities:
+                city = city.replace(" ", "+").replace(",", "%2C")
                 for job_title in self.config.job_titles:
+                    job_title = job_title.replace(" ", "+")
                     url_list.append(f'https://{country_code}.indeed.com/jobs?q={job_title}&l={city}&sort=date')
 
         return url_list
+
+
+    def _get_date_posted(self, posted: str) -> str | None:
+        '''Returns the string representation of the date the job was posted in the format `YYYY-MM-DD`.'''
+
+        regex_id: re.Pattern = re.compile("([0-9]+)")
+        today = datetime.now()
+
+        if "today" in posted.lower() or "just now" in posted.lower():
+            return (today.strftime("%Y-%m-%d"))
+
+        posted = int(re.findall(regex_id, posted)[0])
+        diff = timedelta(hours=posted*24)
+
+        if diff.days > self.config.ignore_older_than_days:
+            return None
+        
+        final = today - diff
+        return final.strftime("%Y-%m-%d")
 
 
     def scrape(self) -> None:
@@ -61,12 +84,16 @@ class IndeedScraper:
 
                             if job_url in url_list:
                                 continue
+                            
+                            posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
+                            job_date_posted = self._get_date_posted(self, posted)
+                            if job_date_posted is None:
+                                continue
 
                             job_title = posting.find_element(By.CLASS_NAME, 'jcs-JobTitle').find_element(By.CSS_SELECTOR, 'span').text
                             job_employer = posting.find_element(By.CSS_SELECTOR, "[data-testid='company-name']").text
                             description_parts = [paragraph.text for paragraph in posting.find_elements(By.CSS_SELECTOR, "li")]
                             job_description = "\n".join([part for part in description_parts if part])
-                            job_date_posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text.replace("\n", ": ")
                             
                             self.indeed_db.insert_new_job(con, cur, job_title, job_employer, job_description, job_date_posted)
                             if not new_job_found:
@@ -92,6 +119,17 @@ class IndeedScraper:
     def scrape_loop(self):
         '''Performs the scraping on a schedule according to the configuration options.'''
 
+        start = datetime.now()
+        end = start + timedelta(seconds=self.config.scraper_delay_sec)
+
         while not self.config.kill:
+            # Taking the following approach in order to properly terminate the app without affecting potential db operations
+            # or waiting for the full scraper delay. This way the killswitch check happens every second.
+            if datetime.now() < end:
+                time.sleep(1)
+                continue
+
             self.scrape()
-            time.sleep(self.config.scraper_delay_sec)
+            start = datetime.now()
+            end = start + timedelta(seconds=self.config.scraper_delay_sec)
+            

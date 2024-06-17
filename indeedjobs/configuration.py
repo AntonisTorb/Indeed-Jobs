@@ -12,6 +12,7 @@ class Config():
         self.selenium_sleep_sec: int
         self.scraper_delay_sec: int
         self.bot_delay_sec: int
+        self.ignore_older_than_days: int
 
         try:
             with open(config_path, 'r') as f:

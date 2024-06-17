@@ -11,6 +11,9 @@ An app that scrapes Indeed for jobs based on provided configuration and notifies
 - ~~Add configuration options for delays etc.~~
 - ~~Create database with considered jobs, keep track of dates, responses, notification status etc.~~
 - Add config commands.
-- Add date cutoff for scraper (job posted before x days ignnored.)
-- Format date posted (YYYY/mm/dd). If posted 'just now', use current date.
+- ~~Add date cutoff for scraper (job posted before x days ignnored.)~~
+- ~~Format date posted (YYYY-mm-dd). If posted 'just now', use current date.~~
+- Make Selenium headless after testing.
+- Set up threads for scraper and bot.
 - Test everything.
+- Write ReadMe.
