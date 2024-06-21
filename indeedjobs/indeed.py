@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from functools import wraps
+import logging
 import re
 import time
 
@@ -19,18 +21,24 @@ class IndeedScraper:
 
         self.config = config
         self.indeed_db: IndeedDb = indeed_db
+
+        self.logger: logging.Logger = logging.getLogger(__name__)
         
 
     def _construct_urls(self) -> list[str]:
         '''Creates and returns a list of URLs for each location and job title specified in the configuration.'''
 
         url_list: list[str] = []
-        for country_code, cities in self.config.locations.items():
-            for city in cities:
-                city = city.replace(" ", "+").replace(",", "%2C")
-                for job_title in self.config.job_titles:
-                    job_title = job_title.replace(" ", "+")
-                    url_list.append(f'https://{country_code}.indeed.com/jobs?q={job_title}&l={city}&sort=date')
+        try:
+            for country_code, cities in self.config.locations.items():
+                for city in cities:
+                    city = city.replace(" ", "+").replace(",", "%2C")
+                    for job_title in self.config.job_titles:
+                        job_title = job_title.replace(" ", "+")
+                        url_list.append(f'https://{country_code}.indeed.com/jobs?q={job_title}&l={city}&sort=date')
+        except Exception as e:
+            self.logger.exception(e)
+            self.config.kill = True
 
         return url_list
 
@@ -41,52 +49,69 @@ class IndeedScraper:
         regex_id: re.Pattern = re.compile("([0-9]+)")
         today = datetime.now()
 
-        if "today" in posted.lower() or "just now" in posted.lower():
-            return (today.strftime("%Y-%m-%d"))
+        try:
+            if "today" in posted.lower() or "just" in posted.lower():
+                return today.strftime("%Y-%m-%d")
 
-        posted = int(re.findall(regex_id, posted)[0])
-        diff = timedelta(hours=posted*24)
+            posted = int(re.findall(regex_id, posted)[0])
+            diff = timedelta(hours=posted*24)
 
-        if diff.days > self.config.ignore_older_than_days:
-            return None
-        
-        final = today - diff
-        return final.strftime("%Y-%m-%d")
+            if diff.days > self.config.ignore_older_than_days:
+                return None
+            
+            final = today - diff
+            return final.strftime("%Y-%m-%d")
+        except Exception as e:
+            self.logger.exception(e)
+            self.config.kill = True
 
 
-    def scrape(self) -> None:
+    def _scrape(self) -> None:
         '''Scrapes `Indeed` for the specified job(s) and location(s) and adds any new ones to the database.
         Additionally, if any new job posting is added, signals the Discord bot to notify the user.
         '''
 
-        url_list: list[str] = self._construct_urls()
-        new_job_found = False
+        url_list = self._construct_urls()
 
         while self.indeed_db.busy:
             time.sleep(1)
         
         self.indeed_db.busy = True
         con, cur = self.indeed_db.get_con_cur()
-        cur.execute('SELECT url FROM indeed_jobs')
-        url_list = [url_tuple[0] for url_tuple in cur.fetchall()]
+        
+        jobs_found: int = 0
+        new_jobs_found: int = 0
 
         try:
+            results = cur.execute('SELECT url FROM indeed_jobs')
+            url_results = results.fetchall()
+            urls_in_db = []
+            if len(url_results):
+                urls_in_db: list[str] = [url.split("&bb=")[0] for url_tuple in url_results for url in url_tuple]
+
             with webdriver.Firefox() as driver:
                 for url in url_list:
                     last_page = False
                     while not last_page:
                         driver.get(url)
                         time.sleep(self.config.selenium_sleep_sec)
+                        try:  # If pop-up, refresh.
+                            _ = driver.find_element(By.CSS_SELECTOR, "#mosaic-desktopserpjapopup")
+                            driver.get(url)
+                            time.sleep(self.config.selenium_sleep_sec)
+                        except NoSuchElementException:
+                            pass
+
                         postings = driver.find_elements(By.CLASS_NAME, "job_seen_beacon")
                         
                         for posting in postings:
+                            jobs_found += 1
                             job_url = posting.find_element(By.CLASS_NAME, "jcs-JobTitle").get_attribute("href")
-
-                            if job_url in url_list:
+                            if job_url.split("&bb=")[0] in urls_in_db:
                                 continue
                             
                             posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
-                            job_date_posted = self._get_date_posted(self, posted)
+                            job_date_posted = self._get_date_posted(posted)
                             if job_date_posted is None:
                                 continue
 
@@ -94,10 +119,8 @@ class IndeedScraper:
                             job_employer = posting.find_element(By.CSS_SELECTOR, "[data-testid='company-name']").text
                             description_parts = [paragraph.text for paragraph in posting.find_elements(By.CSS_SELECTOR, "li")]
                             job_description = "\n".join([part for part in description_parts if part])
-                            
-                            self.indeed_db.insert_new_job(con, cur, job_title, job_employer, job_description, job_date_posted)
-                            if not new_job_found:
-                                new_job_found = True
+                            self.indeed_db.insert_new_job(con, cur, job_url, job_title, job_employer, job_description, job_date_posted)
+                            new_jobs_found += 1
 
                         try:  # Get next page URL
                             url = driver.find_element(By.CSS_SELECTOR, "[data-testid='pagination-page-next']").get_attribute("href")
@@ -105,31 +128,30 @@ class IndeedScraper:
                             last_page = True
 
         except Exception as e:
-            self.logger.error(e)
+            self.logger.exception(e)
             self.config.kill = True
         finally:
             cur.close()
             con.close()
             self.indeed_db.busy = False
 
-        if new_job_found:
+        self.logger.info(f'{jobs_found} jobs found, {new_jobs_found} new.')
+
+        if new_jobs_found:
             self.indeed_db.new_jobs = True
 
     
     def scrape_loop(self):
         '''Performs the scraping on a schedule according to the configuration options.'''
 
-        start = datetime.now()
-        end = start + timedelta(seconds=self.config.scraper_delay_sec)
-
         while not self.config.kill:
             # Taking the following approach in order to properly terminate the app without affecting potential db operations
             # or waiting for the full scraper delay. This way the killswitch check happens every second.
+            start = datetime.now()
+            end = start + timedelta(seconds=self.config.scraper_delay_sec)
+            self._scrape()
+
             if datetime.now() < end:
                 time.sleep(1)
                 continue
-
-            self.scrape()
-            start = datetime.now()
-            end = start + timedelta(seconds=self.config.scraper_delay_sec)
             

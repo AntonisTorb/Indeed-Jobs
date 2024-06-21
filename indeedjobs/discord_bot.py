@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from .configuration import Config
 from .database import IndeedDb
-from .utils import DISCORD_HELP, regex_id
+from .utils import DISCORD_HELP, regex_id_from_discord
 
 
 class DiscordBot(Bot):
@@ -50,7 +50,7 @@ class DiscordBot(Bot):
         '''Retrieves the Id of the message being replied to.'''
 
         message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        return int(re.findall(regex_id, message.content))
+        return int(re.findall(regex_id_from_discord, message.content))
 
 
     async def _get_channels(self) -> None:
@@ -172,7 +172,7 @@ class DiscordBot(Bot):
                 return
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
-                job_id = int(re.findall(regex_id, message.content))
+                job_id = int(re.findall(regex_id_from_discord, message.content))
                 await self.indeed_db.update_for_id(job_id, "interested", 1)
                 await message.remove_reaction("❌")
                 await message.channel.send(f'Updated: Interested in Job with Id: {job_id}', delete_after=30)

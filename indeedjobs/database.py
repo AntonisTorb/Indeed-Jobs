@@ -54,22 +54,12 @@ class IndeedDb:
                         date_posted TEXT,
                         notified BOOLEAN,
                         interested BOOLEAN,
-                        applied BOOLEAN
+                        applied BOOLEAN,
                         response BOOLEAN,
                         rejected BOOLEAN,
                         interviews INTEGER,
                         job_offer BOOLEAN
                         )''')
-            
-            cur.execute('''INSERT INTO indeed_jobs(
-                            url, job_title, employer, description, date_posted, notified, interested, applied, response, rejected, interviews, job_offer
-                        ) VALUES (
-                            "test url", "test title", "test employer", "test description", "test date", ?, ?, ?, ?, ?, 0, ?
-                        )''', 
-                        (False, False, False, False, False, False))
-            con.commit()
-            res = cur.execute("SELECT url, interviews, job_offer FROM indeed_jobs")
-            print(res.fetchall())
         except Exception as e:
             self.logger.error(e)
             self.config.kill = True
@@ -82,22 +72,11 @@ class IndeedDb:
                        job_employer: str, job_description: str, job_date_posted: str) -> None:
         '''Insert new job row to the database.'''
         
-        values = [("url", job_url), 
-                ("job_title", job_title), 
-                ("employer", job_employer), 
-                ("description", job_description), 
-                ("date_posted", job_date_posted), 
-                ("notified", False), 
-                ("interested", False), 
-                ("applied", False), 
-                ("response", False), 
-                ("rejected", False), 
-                ("interviews", 0), 
-                ("job_offer", False)]
+        values = (job_url,  job_title, job_employer, job_description, job_date_posted, False, False, False, False, False, 0, False)
         
         cur.execute('''INSERT INTO indeed_jobs(
                     url, job_title, employer, description, date_posted, notified, interested, applied, response, rejected, interviews, job_offer
-                    ) VALUES (?,?)''', values)
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''', values)
         con.commit()
 
 

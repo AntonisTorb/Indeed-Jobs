@@ -44,7 +44,7 @@ def maintain_log(log_path: Path|str, days: int) -> None:
 
 DISCORD_HELP = '''# Help:
 ## Config Channel:
-`!close                      `: Close application.
+`!close            `: Close application.
 
 ## Notification Channel:
 - React with ✅ to mark interested, or ❌ to delete message.
@@ -59,4 +59,4 @@ DISCORD_HELP = '''# Help:
 `rejected: (0, 1)  `: If application rejected.
 `job_offer: (0, 1) `: If job offer received.'''
 
-regex_id: re.Pattern = re.compile("**Id**: ([0-9]+)")
+regex_id_from_discord: re.Pattern = re.compile(r"\*\*Id\*\*: ([0-9]+)")

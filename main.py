@@ -21,21 +21,22 @@ def main() -> None:
         config = Config(config_path)
         indeed_db: IndeedDb = IndeedDb(db_path, config)
         indeed_db.create_adapters_converters()
-        #indeed_db.create_table()
+        indeed_db.create_table()
         
         scraper = IndeedScraper(config, indeed_db)
-        #scraper.scrape()
+        #scraper.scrape_loop()
+        scraper._scrape()
     except Exception as e:
         main_logger.exception(e)
 
-    try:
-        maintain_log(logger_path, 30)
-        bot: DiscordBot = DiscordBot(config, indeed_db)
-        main_logger.info("Starting bot...")
-        bot.run()
-        main_logger.info("Closing bot...")
-    except Exception as e:
-        main_logger.exception(e)
+    # try:
+    #     maintain_log(logger_path, 30)
+    #     bot: DiscordBot = DiscordBot(config, indeed_db)
+    #     main_logger.info("Starting bot...")
+    #     bot.run()
+    #     main_logger.info("Closing bot...")
+    # except Exception as e:
+    #     main_logger.exception(e)
 
 
 if __name__ == "__main__":
