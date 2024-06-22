@@ -7,11 +7,15 @@ from .configuration import Config
 
 class IndeedDb:
 
-    def __init__(self, db_path: Path, config: Config) -> None:
+    def __init__(self, config: Config) -> None:
         '''Class containing logic related to the `sqlite` database holding the `Indeed` job postings.'''
 
-        self.db_path: Path = db_path
         self.config: Config = config
+
+        if config.db_path:
+            self.db_path: Path = Path(config.db_path)
+        else:
+            self.db_path = Path.cwd() / "indeed.db"
 
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.busy = False

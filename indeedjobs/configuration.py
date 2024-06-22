@@ -9,6 +9,8 @@ class Config():
         # Configuration settings typing.
         self.locations: dict[str, list[str]]
         self.job_titles: list[str]
+        self.db_path: str
+        self.log_path: str
         self.selenium_sleep_sec: int
         self.scraper_delay_sec: int
         self.bot_delay_sec: int
