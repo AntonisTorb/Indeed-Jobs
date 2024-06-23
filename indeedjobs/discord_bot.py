@@ -46,11 +46,11 @@ class DiscordBot(Bot):
             self.config.kill = True
 
 
-    async def get_id(ctx: Context) -> int:
+    async def get_id(self, ctx: Context) -> int:
         '''Retrieves the Id of the message being replied to.'''
 
         message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        return int(re.findall(regex_id_from_discord, message.content))
+        return int(re.findall(regex_id_from_discord, message.content)[0])
 
 
     async def _get_channels(self) -> None:
@@ -101,47 +101,93 @@ class DiscordBot(Bot):
                 return
             await ctx.send(DISCORD_HELP)
 
-        
+
         @self.command()
         @exception_handler_async
-        async def set(ctx: Context, field: str, value: str):
-            '''Set certain database field values as provided.
-            The following fields are supported: `applied, response, rejected, job_offer`)
-            '''
+        async def applied(ctx: Context):
+            '''Update the `applied` field in the database for the job replied to. Swaps the boolean value.'''
 
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
-            if field not in ("applied", "response", "rejected", "job_offer"):
-                await ctx.send("Wrong field name, please type `!help` for a list of acceptable names.", delete_after=30)
-                await ctx.message.delete()
-                return
-            if value not in ("0", "1"):
-                await ctx.send("Wrong value, please type `!help` for a list of acceptable values.", delete_after=30)
-                await ctx.message.delete()
-                return
-            
-            job_id: int = await self.get_id(ctx)
-            # print(job_id)
-            
-            await self.indeed_db.update_for_id(job_id, field, int(value))
 
-            await ctx.send(f'{field} updated to {value} for job with Id: {job_id}', delete_after=30)
+            job_id: int = await self.get_id(ctx)
+            application = await self.indeed_db.update_for_id(job_id, "applied")
+
+            if application:
+                await ctx.send(f'Added application for job with Id: {job_id}', delete_after=30)
+            else:
+                await ctx.send(f'Removed application for job with Id: {job_id}', delete_after=30)
             await ctx.message.delete()
 
 
         @self.command()
         @exception_handler_async
-        async def interview(ctx: Context):
-            '''Increments the `interviews` value in the database by 1 for the job with the provided Id.'''
+        async def response(ctx: Context):
+            '''Update the `response` field in the database for the job replied to. Swaps the boolean value.'''
 
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
             job_id: int = await self.get_id(ctx)
-            
-            await self.indeed_db.update_for_id(job_id, "interviews", "")
+            response = await self.indeed_db.update_for_id(job_id, "response")
 
-            await ctx.send(f'Added interview for job with Id: {job_id}', delete_after=30)
+            if response:
+                await ctx.send(f'Added response for job with Id: {job_id}', delete_after=30)
+            else:
+                await ctx.send(f'Removed response for job with Id: {job_id}', delete_after=30)
+            await ctx.message.delete()
+        
+
+        @self.command()
+        @exception_handler_async
+        async def rejected(ctx: Context):
+            '''Update the `rejected` field in the database for the job replied to. Swaps the boolean value.'''
+
+            if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
+                return
+
+            job_id: int = await self.get_id(ctx)
+            rejection = await self.indeed_db.update_for_id(job_id, "rejected", True)
+
+            if rejection:
+                await ctx.send(f'Added rejection for job with Id: {job_id}', delete_after=30)
+            else:
+                await ctx.send(f'Removed rejection for job with Id: {job_id}', delete_after=30)
+            await ctx.message.delete()
+
+
+        @self.command()
+        @exception_handler_async
+        async def offer(ctx: Context):
+            '''Update the `offer` field in the database for the job replied to. Swaps the boolean value.'''
+
+            if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
+                return
+
+            job_id: int = await self.get_id(ctx)
+            offer = await self.indeed_db.update_for_id(job_id, "job_offer", True)
+
+            if offer:
+                await ctx.send(f'Added job offer for job with Id: {job_id}', delete_after=30)
+            else:
+                await ctx.send(f'Removed job offer for job with Id: {job_id}', delete_after=30)
+            await ctx.message.delete()
+
+
+        @self.command()
+        @exception_handler_async
+        async def interview(ctx: Context, operation: str = "+"):
+            '''Update the `interviews` field in the database for the job replied to. 
+            Increments by one upwards or downwards depending on the provided operation,"+"(default) or "-".
+            '''
+
+            if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
+                return
+            
+            job_id: int = await self.get_id(ctx)
+            interviews = await self.indeed_db.update_for_id(job_id, "interviews", operation)
+
+            await ctx.send(f'Updated {interviews} interview round(s) for job with Id: {job_id}', delete_after=30)
             await ctx.message.delete()
 
 
@@ -172,13 +218,32 @@ class DiscordBot(Bot):
                 return
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
-                job_id = int(re.findall(regex_id_from_discord, message.content))
-                await self.indeed_db.update_for_id(job_id, "interested", 1)
-                await message.remove_reaction("❌")
-                await message.channel.send(f'Updated: Interested in Job with Id: {job_id}', delete_after=30)
+                job_id = int(re.findall(regex_id_from_discord, message.content)[0])
+                await self.indeed_db.update_for_id(job_id, "interested")
+                await message.remove_reaction("❌", member=discord.Object(self.user.id))
+                await message.channel.send(f'Added interested in Job with Id: {job_id}', delete_after=30)
             elif payload.emoji.name == "❌" and payload.user_id != self.user.id:
                 await message.delete()
+        
+
+        @self.event
+        @exception_handler_async
+        async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent) -> None:
+            '''On `interested` reaction removal, update database, add deletion reaction and inform user.'''
+
+            if payload.channel_id != self.notif_channel_id:
+                return
             
+            message: discord.Message = await self.get_channel(payload.channel_id).fetch_message(payload.message_id)
+            if message.author.id != self.user.id:  # Reaction on message not originally from bot.
+                return
+
+            if payload.emoji.name == "✅":
+                job_id = int(re.findall(regex_id_from_discord, message.content)[0])
+                await self.indeed_db.update_for_id(job_id, "interested")
+                await message.add_reaction("❌")
+                await message.channel.send(f'Removed interested in Job with Id: {job_id}', delete_after=30)
+
 
         @tasks.loop(seconds=1)
         @exception_handler_async
@@ -198,15 +263,15 @@ class DiscordBot(Bot):
             while self.indeed_db.busy:
                 asyncio.sleep(1)
 
-            if not self.indeed_db.new_jobs:
-                return
+            # if not self.indeed_db.new_jobs:
+            #     return
 
             self.indeed_db.busy = True 
             con, cur = self.indeed_db.get_con_cur()
 
             try:
                 new_jobs = cur.execute('SELECT id, url, job_title, employer, description FROM indeed_jobs WHERE notified = 0')
-                for job in new_jobs:
+                for job in new_jobs.fetchall():
                     text = '''**Id**: {}
 **URL**: {}
 **Title**: {}
@@ -233,6 +298,6 @@ class DiscordBot(Bot):
             await self._get_channels()
             await self.config_channel.send("Bot is live!")
             #asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
-            #asyncio.gather(_kill_loop.start(), _tasks_loop.start())
+            asyncio.gather(_kill_loop.start(), _tasks_loop.start())
 
         super().run(self.token)

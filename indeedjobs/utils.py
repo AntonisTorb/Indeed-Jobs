@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 
-def maintain_log(log_path: Path|str, days: int) -> None:
+def maintain_log(log_path: Path, days: int) -> None:
     '''Function to maintain the log file by removing entries older than `days` days.'''
 
     if not log_path.exists():
@@ -48,15 +48,77 @@ DISCORD_HELP = '''# Help:
 
 ## Notification Channel:
 - React with ✅ to mark interested, or ❌ to delete message.
-- Reply with the following commands to set field in database:
+- Reply with the following commands to swap/set field in database for `job id` in the replied message:
 
-`!set {field} {value}`
-`!interview`: Increments interviews by 1.
-
-### Fields and values list:
-`applied: (0, 1)   `: If applied for position.
-`response: (0, 1)  `: If response is received from employer.
-`rejected: (0, 1)  `: If application rejected.
-`job_offer: (0, 1) `: If job offer received.'''
+`!interview {operation}`: Increases/decreases interviews by depending on operation: `+`(default) or `-`.
+`!applied:              `: Swaps value for `applied` boolean.
+`!response:             `: Swaps value for `response` boolean.
+`!rejected:             `: Swaps value for `rejected` boolean.
+`!offer:                `: Swaps value for `job_offer` boolean.'''
 
 regex_id_from_discord: re.Pattern = re.compile(r"\*\*Id\*\*: ([0-9]+)")
+
+indeed_countries = {
+    "argentina": "ar",
+    "australia": "au",
+    "austria": "at",
+    "bahrain": "bh",
+    "belgium": "be",
+    "brazil": "br",
+    "canada": "ca",
+    "chile": "cl",
+    "china": "cn",
+    "colombia": "co",
+    "costa rica": "cr",
+    "czech republic": "cz",
+    "denmark": "dk",
+    "ecuador": "ec",
+    "egypt": "eg",
+    "finland": "fi",
+    "france": "fr",
+    "germany": "de",
+    "greece": "gr",
+    "hong kong": "hk",
+    "hungary": "hu",
+    "india": "in",
+    "indonesia": "id",
+    "ireland": "ie",
+    "israel": "il",
+    "italy": "it",
+    "japan": "jp",
+    "kuwait": "kw",
+    "luxembourg": "lu",
+    "malaysia": "malaysia",
+    "mexico": "mx",
+    "morocco": "ma",
+    "netherlands": "nl",
+    "new zealand": "nz",
+    "nigeria": "ng",
+    "norway": "no",
+    "oman": "om",
+    "pakistan": "pk",
+    "panama": "pa",
+    "peru": "pe",
+    "philippines": "ph",
+    "poland": "pl",
+    "portugal": "pt",
+    "qatar": "qa",
+    "romania": "ro",
+    "saudi arabia": "sa",
+    "singapore": "sg",
+    "south africa": "za",
+    "south korea": "kr",
+    "spain": "es",
+    "sweden": "se",
+    "switzerland": "ch",
+    "taiwan": "tw",
+    "thailand": "th",
+    "turkey": "tr",
+    "ukraine": "ua",
+    "united arab emirates": "ae",
+    "united kingdom": "uk",
+    "united states": "www",
+    "uruguay": "uy",
+    "venezuela": "ve",
+    "vietnam": "vn"
+}

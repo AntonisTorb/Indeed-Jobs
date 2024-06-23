@@ -11,10 +11,10 @@ class Config():
         self.job_titles: list[str]
         self.db_path: str
         self.log_path: str
-        self.selenium_sleep_sec: int
-        self.scraper_delay_sec: int
-        self.bot_delay_sec: int
-        self.ignore_older_than_days: int
+        self.selenium_sleep_sec: int = 10
+        self.scraper_delay_sec: int = 3600
+        self.bot_delay_sec: int = 600
+        self.ignore_older_than_days: int = 7
 
         try:
             with open(config_path, 'r') as f:

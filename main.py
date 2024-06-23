@@ -6,7 +6,7 @@ from indeedjobs import Config, DiscordBot, IndeedDb, IndeedScraper, maintain_log
 
 
 def main() -> None:
-
+    
     cwd: Path = Path.cwd()
     config_path: Path = cwd / "config.json"
     config = Config(config_path)
@@ -22,26 +22,23 @@ def main() -> None:
                         format="%(asctime)s|%(levelname)8s|%(name)s|%(message)s")
 
     try:
-        maintain_log(config.log_path, 30)
-
+        maintain_log(log_path, 30)
         indeed_db: IndeedDb = IndeedDb(config)
         indeed_db.create_adapters_converters()
-        indeed_db.create_table()
+        # indeed_db.create_table()
         
-        scraper = IndeedScraper(config, indeed_db)
-        #scraper.scrape_loop()
-        scraper._scrape()
+        # scraper = IndeedScraper(config, indeed_db)
+        # scraper.scrape_loop()
     except Exception as e:
         main_logger.exception(e)
 
-    # try:
-    #     maintain_log(config.log_path, 30)
-    #     bot: DiscordBot = DiscordBot(config, indeed_db)
-    #     main_logger.info("Starting bot...")
-    #     bot.run()
-    #     main_logger.info("Closing bot...")
-    # except Exception as e:
-    #     main_logger.exception(e)
+    try:
+        bot: DiscordBot = DiscordBot(config, indeed_db)
+        main_logger.info("Starting bot...")
+        bot.run()
+        main_logger.info("Closing bot...")
+    except Exception as e:
+        main_logger.exception(e)
 
 
 if __name__ == "__main__":

@@ -84,7 +84,7 @@ class IndeedDb:
         con.commit()
 
 
-    async def update_for_id(self, job_id: int, field: str, value: str):
+    async def update_for_id(self, job_id: int, field: str, value: str = "") -> bool | int:
         '''Update the database field with the values provided for the specified Id'''
         
         while self.busy:
@@ -92,15 +92,26 @@ class IndeedDb:
 
         self.busy = True 
         con, cur = self.get_con_cur()
+        status: bool | int
 
         try:
-            if value == "interviews":
-                cur.execute("UPDATE indeed_jobs SET interviews = interviews + 1 WHERE id = ?", (job_id))
+            if field == "interviews":
+                cur.execute(f'SELECT {field} FROM indeed_jobs WHERE id = {job_id}')
+                status = cur.fetchone()[0]
+                if value == "+":
+                    status += 1
+                elif value == "-" and status > 0:
+                    status -= 1
+                cur.execute(f'UPDATE indeed_jobs SET interviews = ? WHERE id = {job_id}', (status,))
             else:
-                cur.execute("UPDATE indeed_jobs SET ? = ? WHERE id = ?", (field, int(value), job_id))
+                cur.execute(f'SELECT {field} FROM indeed_jobs WHERE id = {job_id}')
+                status = not cur.fetchone()[0]
+                cur.execute(f'UPDATE indeed_jobs SET {field} = ? WHERE id = {job_id}', (status,))
+            con.commit()
         except Exception as e:
             raise e
         finally:
             cur.close()
             con.close()
             self.busy = False
+            return status

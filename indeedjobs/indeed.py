@@ -12,6 +12,7 @@ from selenium.webdriver.firefox.service import Service
 
 from .configuration import Config
 from .database import IndeedDb
+from .utils import indeed_countries 
 
 
 class IndeedScraper:
@@ -23,6 +24,11 @@ class IndeedScraper:
         self.indeed_db: IndeedDb = indeed_db
 
         self.logger: logging.Logger = logging.getLogger(__name__)
+
+        self.options: Options = Options()
+        self.options.add_argument("--headless")
+        self.options.set_preference("general.useragent.override", 
+                                    "userAgent=Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0")
         
 
     def _construct_urls(self) -> list[str]:
@@ -31,6 +37,13 @@ class IndeedScraper:
         url_list: list[str] = []
         try:
             for country_code, cities in self.config.locations.items():
+                if country_code not in indeed_countries.values():
+                    try:
+                        country_code = indeed_countries[country_code.lower()]
+                    except KeyError:
+                        self.logger.error(f'Country {country_code} not supported or wrong spelling. Skipping...')
+                        continue
+                
                 for city in cities:
                     city = city.replace(" ", "+").replace(",", "%2C")
                     for job_title in self.config.job_titles:
@@ -89,7 +102,7 @@ class IndeedScraper:
             if len(url_results):
                 urls_in_db: list[str] = [url.split("&bb=")[0] for url_tuple in url_results for url in url_tuple]
 
-            with webdriver.Firefox() as driver:
+            with webdriver.Firefox(options=self.options) as driver:
                 for url in url_list:
                     last_page = False
                     while not last_page:
@@ -149,9 +162,13 @@ class IndeedScraper:
             # or waiting for the full scraper delay. This way the killswitch check happens every second.
             start = datetime.now()
             end = start + timedelta(seconds=self.config.scraper_delay_sec)
+
+            self.logger.info("Starting to scrape Indeed...")
             self._scrape()
 
-            if datetime.now() < end:
+            while datetime.now() < end:
+                if self.config.kill:
+                    break
+
                 time.sleep(1)
-                continue
             
