@@ -122,7 +122,7 @@ class IndeedScraper:
                         for posting in postings:
                             jobs_found += 1
                             job_url = posting.find_element(By.CLASS_NAME, "jcs-JobTitle").get_attribute("href")
-                            if job_url.split("&bb=")[0] in urls_in_db:
+                            if job_url.split("&bb=")[0] in urls_in_db or "pagead" in job_url:
                                 continue
                             
                             posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
