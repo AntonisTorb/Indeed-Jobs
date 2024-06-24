@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from functools import wraps
 import logging
 import re
 import time
@@ -8,11 +7,10 @@ from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.service import Service
 
 from .configuration import Config
 from .database import IndeedDb
-from .utils import indeed_countries 
+from .utils import INDEED_COUNTRIES 
 
 
 class IndeedScraper:
@@ -37,9 +35,9 @@ class IndeedScraper:
         url_list: list[str] = []
         try:
             for country_code, cities in self.config.locations.items():
-                if country_code not in indeed_countries.values():
+                if country_code not in INDEED_COUNTRIES.values():
                     try:
-                        country_code = indeed_countries[country_code.lower()]
+                        country_code = INDEED_COUNTRIES[country_code.lower()]
                     except KeyError:
                         self.logger.error(f'Country {country_code} not supported or wrong spelling. Skipping...')
                         continue
@@ -106,8 +104,12 @@ class IndeedScraper:
                 for url in url_list:
                     last_page = False
                     while not last_page:
+                        if self.config.kill:
+                            return
+                        
                         driver.get(url)
                         time.sleep(self.config.selenium_sleep_sec)
+
                         try:  # If pop-up, refresh.
                             _ = driver.find_element(By.CSS_SELECTOR, "#mosaic-desktopserpjapopup")
                             driver.get(url)

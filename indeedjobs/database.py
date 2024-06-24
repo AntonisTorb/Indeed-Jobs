@@ -23,7 +23,7 @@ class IndeedDb:
 
 
     def get_con_cur(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]|tuple[None, None]:
-        '''Creates and returns the `Connection` and `Cursor` objects for the specified `sqlite` database'''
+        '''Creates and returns the `Connection` and `Cursor` objects for the `sqlite` database'''
 
         try:
             con: sqlite3.Connection = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
@@ -41,7 +41,7 @@ class IndeedDb:
         sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
 
 
-    def create_table(self, drop_existing: bool = True) -> None:
+    def create_table(self, drop_existing: bool = False) -> None:
         '''Initial creation of the `indeed_jobs` table.'''
         
         con, cur = self.get_con_cur()
@@ -74,7 +74,7 @@ class IndeedDb:
 
     def insert_new_job(self, con: sqlite3.Connection, cur: sqlite3.Cursor, job_url: str, job_title: str, 
                        job_employer: str, job_description: str, job_date_posted: str) -> None:
-        '''Insert new job row to the database.'''
+        '''Insert new job row to the database table.'''
         
         values = (job_url,  job_title, job_employer, job_description, job_date_posted, False, False, False, False, False, 0, False)
         
@@ -85,7 +85,8 @@ class IndeedDb:
 
 
     async def update_for_id(self, job_id: int, field: str, value: str = "") -> bool | int:
-        '''Update the database field with the values provided for the specified Id'''
+        '''Update the database `field` with the opposite `boolean` value for the specified Id. 
+        For the `interviews` field, increase/decrease value according to provided operation `value`.'''
         
         while self.busy:
             asyncio.sleep(1)
@@ -108,8 +109,6 @@ class IndeedDb:
                 status = not cur.fetchone()[0]
                 cur.execute(f'UPDATE indeed_jobs SET {field} = ? WHERE id = {job_id}', (status,))
             con.commit()
-        except Exception as e:
-            raise e
         finally:
             cur.close()
             con.close()

@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
-
+import threading
+import time
 
 from indeedjobs import Config, DiscordBot, IndeedDb, IndeedScraper, maintain_log
 
@@ -25,21 +26,36 @@ def main() -> None:
         maintain_log(log_path, 30)
         indeed_db: IndeedDb = IndeedDb(config)
         indeed_db.create_adapters_converters()
-        # indeed_db.create_table()
-        
-        # scraper = IndeedScraper(config, indeed_db)
-        # scraper.scrape_loop()
-    except Exception as e:
-        main_logger.exception(e)
+        indeed_db.create_table()
 
-    try:
+        scraper: IndeedScraper = IndeedScraper(config, indeed_db)
+        scraper_thread: threading.Thread = threading.Thread(target=scraper.scrape_loop)
+
         bot: DiscordBot = DiscordBot(config, indeed_db)
-        main_logger.info("Starting bot...")
-        bot.run()
-        main_logger.info("Closing bot...")
+        bot_thread: threading.Thread = threading.Thread(target=bot.run)
+
+
+        main_logger.info("Starting application.")
+        scraper_thread.start()
+        bot_thread.start()
+
     except Exception as e:
         main_logger.exception(e)
+        config.kill = True
 
+    while True:
+        if config.kill:
+
+            while scraper_thread.is_alive() or bot_thread.is_alive():
+                time.sleep(1)
+
+            main_logger.info("Closing application.")
+            break
+
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:  # Manual shutdown.
+            config.kill = True
 
 if __name__ == "__main__":
 

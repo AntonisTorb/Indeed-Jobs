@@ -1,0 +1,21 @@
+{
+    "locations": {
+        "country_1": [
+            "city_1"
+        ],
+        "country_2": [
+            "city_1",
+            "city_2"
+        ]
+    },
+    "job_titles": [
+        "search_term_1",
+        "search_term_2"
+    ],
+    "db_path": "C:\\path\\to\\db",
+    "log_path": "C:\\path\\to\\log",
+    "selenium_sleep_sec": 10,
+    "scraper_delay_sec": 3600,
+    "bot_delay_sec": 600,
+    "ignore_older_than_days": 7
+}

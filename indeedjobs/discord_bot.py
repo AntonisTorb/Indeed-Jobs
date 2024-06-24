@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from .configuration import Config
 from .database import IndeedDb
-from .utils import DISCORD_HELP, regex_id_from_discord
+from .utils import DISCORD_HELP, REGEX_ID_FROM_DISCORD
 
 
 class DiscordBot(Bot):
@@ -46,11 +46,11 @@ class DiscordBot(Bot):
             self.config.kill = True
 
 
-    async def get_id(self, ctx: Context) -> int:
+    async def get_id_from_reply(self, ctx: Context) -> int:
         '''Retrieves the Id of the message being replied to.'''
 
         message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-        return int(re.findall(regex_id_from_discord, message.content)[0])
+        return int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
 
 
     async def _get_channels(self) -> None:
@@ -79,17 +79,6 @@ class DiscordBot(Bot):
                 except Exception as e:
                     self.logger.exception(e)
             return wrapper
-        
-
-        @self.command()
-        @exception_handler_async
-        async def test(ctx: Context):
-
-            msg = await ctx.channel.fetch_message(ctx.message.reference.message_id)
-            await msg.edit(content="Test success!")
-            if not ctx.channel.id == self.config_channel_id:
-                return
-            #await self.config_channel.send("Test success!")
 
 
         @self.command()
@@ -110,8 +99,8 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id(ctx)
-            application = await self.indeed_db.update_for_id(job_id, "applied")
+            job_id: int = await self.get_id_from_reply(ctx)
+            application: bool = await self.indeed_db.update_for_id(job_id, "applied")
 
             if application:
                 await ctx.send(f'Added application for job with Id: {job_id}', delete_after=30)
@@ -128,8 +117,8 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id(ctx)
-            response = await self.indeed_db.update_for_id(job_id, "response")
+            job_id: int = await self.get_id_from_reply(ctx)
+            response: bool  = await self.indeed_db.update_for_id(job_id, "response")
 
             if response:
                 await ctx.send(f'Added response for job with Id: {job_id}', delete_after=30)
@@ -146,8 +135,8 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id(ctx)
-            rejection = await self.indeed_db.update_for_id(job_id, "rejected", True)
+            job_id: int = await self.get_id_from_reply(ctx)
+            rejection: bool  = await self.indeed_db.update_for_id(job_id, "rejected", True)
 
             if rejection:
                 await ctx.send(f'Added rejection for job with Id: {job_id}', delete_after=30)
@@ -164,8 +153,8 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id(ctx)
-            offer = await self.indeed_db.update_for_id(job_id, "job_offer", True)
+            job_id: int = await self.get_id_from_reply(ctx)
+            offer: bool  = await self.indeed_db.update_for_id(job_id, "job_offer", True)
 
             if offer:
                 await ctx.send(f'Added job offer for job with Id: {job_id}', delete_after=30)
@@ -184,8 +173,8 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
             
-            job_id: int = await self.get_id(ctx)
-            interviews = await self.indeed_db.update_for_id(job_id, "interviews", operation)
+            job_id: int = await self.get_id_from_reply(ctx)
+            interviews: int = await self.indeed_db.update_for_id(job_id, "interviews", operation)
 
             await ctx.send(f'Updated {interviews} interview round(s) for job with Id: {job_id}', delete_after=30)
             await ctx.message.delete()
@@ -218,10 +207,10 @@ class DiscordBot(Bot):
                 return
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
-                job_id = int(re.findall(regex_id_from_discord, message.content)[0])
+                job_id = int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
                 await self.indeed_db.update_for_id(job_id, "interested")
                 await message.remove_reaction("❌", member=discord.Object(self.user.id))
-                await message.channel.send(f'Added interested in Job with Id: {job_id}', delete_after=30)
+                await message.channel.send(f'Added interest in Job with Id: {job_id}', delete_after=30)
             elif payload.emoji.name == "❌" and payload.user_id != self.user.id:
                 await message.delete()
         
@@ -239,15 +228,16 @@ class DiscordBot(Bot):
                 return
 
             if payload.emoji.name == "✅":
-                job_id = int(re.findall(regex_id_from_discord, message.content)[0])
+                job_id = int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
                 await self.indeed_db.update_for_id(job_id, "interested")
                 await message.add_reaction("❌")
-                await message.channel.send(f'Removed interested in Job with Id: {job_id}', delete_after=30)
+                await message.channel.send(f'Removed interest in Job with Id: {job_id}', delete_after=30)
 
 
         @tasks.loop(seconds=1)
         @exception_handler_async
         async def _kill_loop() -> None:
+            '''Closes connection if signaled after informing the user.'''
 
             if self.config.kill:
                 if self.config_channel is not None:
@@ -261,10 +251,16 @@ class DiscordBot(Bot):
             '''Checks if new job postings are in the database and notifies the user.'''
 
             while self.indeed_db.busy:
-                asyncio.sleep(1)
+                if self.config.kill:
+                    return
+                
+                try:
+                    await asyncio.sleep(1)
+                except asyncio.exceptions.CancelledError:
+                    pass
 
-            # if not self.indeed_db.new_jobs:
-            #     return
+            if not self.indeed_db.new_jobs:
+                return
 
             self.indeed_db.busy = True 
             con, cur = self.indeed_db.get_con_cur()
@@ -277,27 +273,27 @@ class DiscordBot(Bot):
 **Title**: {}
 **Employer**: {}
 **Description**: {}'''.format(*job)
-                    message = await self.notif_channel.send(text)
-                    asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
+                    message: discord.Message = await self.notif_channel.send(text)
+                    await asyncio.sleep(2)
+                    await message.add_reaction("✅")
+                    await asyncio.sleep(2)
+                    await message.add_reaction("❌")
                     cur.execute('UPDATE indeed_jobs SET notified = 1 WHERE id = ?', (job[0],))
                     con.commit()
-            except Exception as e:
-                raise e
             finally:
                 cur.close()
                 con.close()
                 self.indeed_db.new_jobs = False
-                self.indeed_db.busy = False  
+                self.indeed_db.busy = False
 
 
         @self.event
         @exception_handler_async
         async def on_ready() -> None:
             
-            self.logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
             await self._get_channels()
             await self.config_channel.send("Bot is live!")
-            #asyncio.gather(message.add_reaction("✅"), message.add_reaction("❌"))
             asyncio.gather(_kill_loop.start(), _tasks_loop.start())
 
+        self.logger.info("Starting bot.")
         super().run(self.token)

@@ -56,9 +56,9 @@ DISCORD_HELP = '''# Help:
 `!rejected:             `: Swaps value for `rejected` boolean.
 `!offer:                `: Swaps value for `job_offer` boolean.'''
 
-regex_id_from_discord: re.Pattern = re.compile(r"\*\*Id\*\*: ([0-9]+)")
+REGEX_ID_FROM_DISCORD: re.Pattern = re.compile(r"\*\*Id\*\*: ([0-9]+)")
 
-indeed_countries = {
+INDEED_COUNTRIES = {
     "argentina": "ar",
     "australia": "au",
     "austria": "at",
