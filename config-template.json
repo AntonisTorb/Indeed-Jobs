@@ -12,8 +12,8 @@
         "search_term_1",
         "search_term_2"
     ],
-    "db_path": "C:\\path\\to\\db",
-    "log_path": "C:\\path\\to\\log",
+    "db_path": "C:\\path\\to\\indeed.db",
+    "log_path": "C:\\path\\to\\indeed.log",
     "selenium_sleep_sec": 10,
     "scraper_delay_sec": 3600,
     "bot_delay_sec": 600,

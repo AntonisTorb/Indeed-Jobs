@@ -48,14 +48,16 @@ DISCORD_HELP = '''# Help:
 
 ## Notification Channel:
 - React with ✅ to mark interested, or ❌ to delete message.
-- Reply with the following commands to swap/set field in database for `job id` in the replied message:
+- Reply with the following commands to swap/set the related field in the database for `job id` in the original message
 
-`!interview {operation}`: Increases/decreases interviews by depending on operation: `+`(default) or `-`.
+`!interview {operation} `: Increases/decreases interviews by depending on operation: `+`(default) or `-`.
 `!applied:              `: Swaps value for `applied` boolean.
 `!response:             `: Swaps value for `response` boolean.
 `!rejected:             `: Swaps value for `rejected` boolean.
-`!offer:                `: Swaps value for `job_offer` boolean.'''
+`!offer:                `: Swaps value for `job_offer` boolean.
 
+For complete documentation please visit: https://github.com/AntonisTorb/Indeed-Jobs'''
+ 
 REGEX_ID_FROM_DISCORD: re.Pattern = re.compile(r"\*\*Id\*\*: ([0-9]+)")
 
 INDEED_COUNTRIES = {

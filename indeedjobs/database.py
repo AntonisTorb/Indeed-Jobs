@@ -104,6 +104,11 @@ class IndeedDb:
                 elif value == "-" and status > 0:
                     status -= 1
                 cur.execute(f'UPDATE indeed_jobs SET interviews = ? WHERE id = {job_id}', (status,))
+            elif field == "interested":
+                if value == "+":
+                    cur.execute(f'UPDATE indeed_jobs SET interested = ? WHERE id = {job_id}', (True,))
+                else:
+                    cur.execute(f'UPDATE indeed_jobs SET interested = ? WHERE id = {job_id}', (False,))
             else:
                 cur.execute(f'SELECT {field} FROM indeed_jobs WHERE id = {job_id}')
                 status = not cur.fetchone()[0]

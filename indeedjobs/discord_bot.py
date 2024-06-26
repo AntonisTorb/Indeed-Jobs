@@ -208,7 +208,7 @@ class DiscordBot(Bot):
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
                 job_id = int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
-                await self.indeed_db.update_for_id(job_id, "interested")
+                await self.indeed_db.update_for_id(job_id, "interested", "+")
                 await message.remove_reaction("❌", member=discord.Object(self.user.id))
                 await message.channel.send(f'Added interest in Job with Id: {job_id}', delete_after=30)
             elif payload.emoji.name == "❌" and payload.user_id != self.user.id:
@@ -229,7 +229,7 @@ class DiscordBot(Bot):
 
             if payload.emoji.name == "✅":
                 job_id = int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
-                await self.indeed_db.update_for_id(job_id, "interested")
+                await self.indeed_db.update_for_id(job_id, "interested", "-")
                 await message.add_reaction("❌")
                 await message.channel.send(f'Removed interest in Job with Id: {job_id}', delete_after=30)
 
@@ -292,7 +292,7 @@ class DiscordBot(Bot):
         async def on_ready() -> None:
             
             await self._get_channels()
-            await self.config_channel.send("Bot is live!")
+            await self.config_channel.send("Bot is live! Type `!help` for a list of available commands.")
             asyncio.gather(_kill_loop.start(), _tasks_loop.start())
 
         self.logger.info("Starting bot.")
