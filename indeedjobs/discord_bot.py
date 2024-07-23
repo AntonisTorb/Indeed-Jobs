@@ -46,7 +46,7 @@ class DiscordBot(Bot):
             self.config.kill = True
 
 
-    async def get_id_from_reply(self, ctx: Context) -> int:
+    async def _get_id_from_reply(self, ctx: Context) -> int:
         '''Retrieves the Id of the message being replied to.'''
 
         message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
@@ -99,7 +99,7 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id_from_reply(ctx)
+            job_id: int = await self._get_id_from_reply(ctx)
             application: bool = await self.indeed_db.update_for_id(job_id, "applied")
 
             if application:
@@ -117,7 +117,7 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id_from_reply(ctx)
+            job_id: int = await self._get_id_from_reply(ctx)
             response: bool  = await self.indeed_db.update_for_id(job_id, "response")
 
             if response:
@@ -135,7 +135,7 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id_from_reply(ctx)
+            job_id: int = await self._get_id_from_reply(ctx)
             rejection: bool  = await self.indeed_db.update_for_id(job_id, "rejected", True)
 
             if rejection:
@@ -153,7 +153,7 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
 
-            job_id: int = await self.get_id_from_reply(ctx)
+            job_id: int = await self._get_id_from_reply(ctx)
             offer: bool  = await self.indeed_db.update_for_id(job_id, "job_offer", True)
 
             if offer:
@@ -173,7 +173,7 @@ class DiscordBot(Bot):
             if ctx.message.reference is None or not ctx.channel.id == self.notif_channel_id:
                 return
             
-            job_id: int = await self.get_id_from_reply(ctx)
+            job_id: int = await self._get_id_from_reply(ctx)
             interviews: int = await self.indeed_db.update_for_id(job_id, "interviews", operation)
 
             await ctx.send(f'Updated {interviews} interview round(s) for job with Id: {job_id}', delete_after=30)
@@ -208,7 +208,7 @@ class DiscordBot(Bot):
             
             if payload.emoji.name == "✅" and payload.user_id != self.user.id:
                 job_id = int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
-                await self.indeed_db.update_for_id(job_id, "interested", "+")
+                _ = await self.indeed_db.update_for_id(job_id, "interested", "+")
                 await message.remove_reaction("❌", member=discord.Object(self.user.id))
                 await message.channel.send(f'Added interest in Job with Id: {job_id}', delete_after=30)
             elif payload.emoji.name == "❌" and payload.user_id != self.user.id:
@@ -229,13 +229,12 @@ class DiscordBot(Bot):
 
             if payload.emoji.name == "✅":
                 job_id = int(re.findall(REGEX_ID_FROM_DISCORD, message.content)[0])
-                await self.indeed_db.update_for_id(job_id, "interested", "-")
+                _ = await self.indeed_db.update_for_id(job_id, "interested", "-")
                 await message.add_reaction("❌")
                 await message.channel.send(f'Removed interest in Job with Id: {job_id}', delete_after=30)
 
 
         @tasks.loop(seconds=1)
-        @exception_handler_async
         async def _kill_loop() -> None:
             '''Closes connection if signaled after informing the user.'''
 
@@ -243,6 +242,7 @@ class DiscordBot(Bot):
                 if self.config_channel is not None:
                     await self.config_channel.send("Closing application, see you later!")
                 await self.close()
+
             
 
         @tasks.loop(seconds=self.config.bot_delay_sec)

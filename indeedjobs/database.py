@@ -89,7 +89,7 @@ class IndeedDb:
         For the `interviews` field, increase/decrease value according to provided operation `value`.'''
         
         while self.busy:
-            asyncio.sleep(1)
+            await asyncio.sleep(1)
 
         self.busy = True 
         con, cur = self.get_con_cur()
@@ -107,8 +107,10 @@ class IndeedDb:
             elif field == "interested":
                 if value == "+":
                     cur.execute(f'UPDATE indeed_jobs SET interested = ? WHERE id = {job_id}', (True,))
+                    status = True
                 else:
                     cur.execute(f'UPDATE indeed_jobs SET interested = ? WHERE id = {job_id}', (False,))
+                    status = False
             else:
                 cur.execute(f'SELECT {field} FROM indeed_jobs WHERE id = {job_id}')
                 status = not cur.fetchone()[0]
