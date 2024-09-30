@@ -92,13 +92,20 @@ class IndeedScraper:
         
         jobs_found: int = 0
         new_jobs_found: int = 0
+        job_id_regex: re.Pattern = re.compile('jk=([a-zA-Z0-9]*)&')
+        scrape_job_ids: list[str] = []
 
         try:
             results = cur.execute('SELECT url FROM indeed_jobs')
-            url_results = results.fetchall()
-            urls_in_db = []
+            url_results: list[tuple[str]] = results.fetchall()
+            job_ids_in_db: list[str] = []
             if len(url_results):
-                urls_in_db: list[str] = [url.split("&bb=")[0] for url_tuple in url_results for url in url_tuple]
+                url_list_db: list[str] = [url for url_tuple in url_results for url in url_tuple]
+                for url in url_list_db:
+                    try:
+                        job_ids_in_db.append(re.search(job_id_regex, url).group(1))
+                    except AttributeError:  # Ad in db.
+                        pass
 
             with webdriver.Firefox(options=self.options) as driver:
                 for url in url_list:
@@ -122,7 +129,16 @@ class IndeedScraper:
                         for posting in postings:
                             jobs_found += 1
                             job_url = posting.find_element(By.CLASS_NAME, "jcs-JobTitle").get_attribute("href")
-                            if job_url.split("&bb=")[0] in urls_in_db or "pagead" in job_url:
+
+                            if "pagead" in job_url:
+                                continue
+
+                            try:
+                                job_id: str = re.search(job_id_regex, job_url).group(1)
+                                if job_id in job_ids_in_db or job_id in scrape_job_ids:
+                                    continue
+                                scrape_job_ids.append(job_id)
+                            except AttributeError:  # Ad.
                                 continue
                             
                             posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
