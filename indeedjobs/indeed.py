@@ -93,7 +93,7 @@ class IndeedScraper:
         jobs_found: int = 0
         new_jobs_found: int = 0
         job_id_regex: re.Pattern = re.compile('jk=([a-zA-Z0-9]*)&')
-        scrape_job_ids: list[str] = []
+        # scrape_job_ids: list[str] = []
 
         try:
             results = cur.execute('SELECT url FROM indeed_jobs')
@@ -135,11 +135,12 @@ class IndeedScraper:
 
                             try:
                                 job_id: str = re.search(job_id_regex, job_url).group(1)
-                                if job_id in job_ids_in_db or job_id in scrape_job_ids:
+                                if job_id in job_ids_in_db:
                                     continue
-                                scrape_job_ids.append(job_id)
                             except AttributeError:  # Ad.
                                 continue
+                                
+                            job_ids_in_db.append(job_id)
                             
                             posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
                             job_date_posted = self._get_date_posted(posted)
