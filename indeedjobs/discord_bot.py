@@ -253,7 +253,7 @@ class DiscordBot(Bot):
             if self.indeed_db.busy or self.config.kill or not self.indeed_db.new_jobs:
                 return
 
-            self.config_channel.send(f'{self.indeed_db.new_jobs} new jobs found. Updating notification channel...')
+            await self.config_channel.send(f'{self.indeed_db.new_jobs} new jobs found. Updating notification channel...')
             self.indeed_db.busy = True 
             con, cur = self.indeed_db.get_con_cur()
 
