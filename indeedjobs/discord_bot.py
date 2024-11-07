@@ -250,18 +250,10 @@ class DiscordBot(Bot):
         async def _tasks_loop() -> None:
             '''Checks if new job postings are in the database and notifies the user.'''
 
-            while self.indeed_db.busy:
-                if self.config.kill:
-                    return
-                
-                try:
-                    await asyncio.sleep(1)
-                except asyncio.exceptions.CancelledError:
-                    pass
-
-            if not self.indeed_db.new_jobs:
+            if self.indeed_db.busy or self.config.kill or not self.indeed_db.new_jobs:
                 return
 
+            self.config_channel.send(f'{self.indeed_db.new_jobs} new jobs found. Updating notification channel...')
             self.indeed_db.busy = True 
             con, cur = self.indeed_db.get_con_cur()
 
@@ -278,12 +270,12 @@ class DiscordBot(Bot):
                     await message.add_reaction("✅")
                     await asyncio.sleep(2)
                     await message.add_reaction("❌")
+                    self.indeed_db.new_jobs -= 1
                     cur.execute('UPDATE indeed_jobs SET notified = 1 WHERE id = ?', (job[0],))
                     con.commit()
             finally:
                 cur.close()
                 con.close()
-                self.indeed_db.new_jobs = False
                 self.indeed_db.busy = False
 
 

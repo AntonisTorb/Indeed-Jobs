@@ -19,7 +19,7 @@ class IndeedDb:
 
         self.logger: logging.Logger = logging.getLogger(__name__)
         self.busy = False
-        self.new_jobs = False
+        self.new_jobs: int = 0
 
 
     def get_con_cur(self) -> tuple[sqlite3.Connection, sqlite3.Cursor]|tuple[None, None]:

@@ -145,7 +145,8 @@ class IndeedScraper:
                             posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
                             job_date_posted = self._get_date_posted(posted)
                             if job_date_posted is None:
-                                continue
+                                last_page = True
+                                break
 
                             job_title = posting.find_element(By.CLASS_NAME, 'jcs-JobTitle').find_element(By.CSS_SELECTOR, 'span').text
                             job_employer = posting.find_element(By.CSS_SELECTOR, "[data-testid='company-name']").text
@@ -166,11 +167,10 @@ class IndeedScraper:
             cur.close()
             con.close()
             self.indeed_db.busy = False
-
-        self.logger.info(f'{jobs_found} jobs found, {new_jobs_found} new.')
+            self.logger.info(f'{jobs_found} jobs found, {new_jobs_found} new.')
 
         if new_jobs_found:
-            self.indeed_db.new_jobs = True
+            self.indeed_db.new_jobs = new_jobs_found
 
     
     def scrape_loop(self):
