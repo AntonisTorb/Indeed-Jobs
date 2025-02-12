@@ -41,7 +41,7 @@ class IndeedDb:
         sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
 
 
-    def create_table(self, drop_existing: bool = False) -> None:
+    def create_table(self, drop_existing: bool = True) -> None:
         '''Initial creation of the `indeed_jobs` table.'''
         
         con, cur = self.get_con_cur()
@@ -55,7 +55,6 @@ class IndeedDb:
                         job_title TEXT,
                         employer TEXT,
                         description TEXT,
-                        date_posted TEXT,
                         notified BOOLEAN,
                         interested BOOLEAN,
                         applied BOOLEAN,
@@ -73,14 +72,14 @@ class IndeedDb:
 
 
     def insert_new_job(self, con: sqlite3.Connection, cur: sqlite3.Cursor, job_url: str, job_title: str, 
-                       job_employer: str, job_description: str, job_date_posted: str) -> None:
+                       job_employer: str, job_description: str) -> None:
         '''Insert new job row to the database table.'''
         
-        values = (job_url,  job_title, job_employer, job_description, job_date_posted, False, False, False, False, False, 0, False)
+        values = (job_url,  job_title, job_employer, job_description, False, False, False, False, False, 0, False)
         
         cur.execute('''INSERT INTO indeed_jobs(
-                    url, job_title, employer, description, date_posted, notified, interested, applied, response, rejected, interviews, job_offer
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''', values)
+                    url, job_title, employer, description, notified, interested, applied, response, rejected, interviews, job_offer
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)''', values)
         con.commit()
 
 

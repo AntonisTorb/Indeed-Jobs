@@ -142,17 +142,17 @@ class IndeedScraper:
                                 
                             job_ids_in_db.append(job_id)
                             
-                            posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
-                            job_date_posted = self._get_date_posted(posted)
-                            if job_date_posted is None:
-                                last_page = True
-                                break
+                            # posted = posting.find_element(By.CSS_SELECTOR, "[data-testid='myJobsStateDate']").text
+                            # job_date_posted = self._get_date_posted(posted)
+                            # if job_date_posted is None:
+                            #     last_page = True
+                            #     break
 
                             job_title = posting.find_element(By.CLASS_NAME, 'jcs-JobTitle').find_element(By.CSS_SELECTOR, 'span').text
                             job_employer = posting.find_element(By.CSS_SELECTOR, "[data-testid='company-name']").text
                             description_parts = [paragraph.text for paragraph in posting.find_elements(By.CSS_SELECTOR, "li")]
                             job_description = "\n".join([part for part in description_parts if part])
-                            self.indeed_db.insert_new_job(con, cur, job_url, job_title, job_employer, job_description, job_date_posted)
+                            self.indeed_db.insert_new_job(con, cur, job_url, job_title, job_employer, job_description)
                             new_jobs_found += 1
 
                         try:  # Get next page URL
